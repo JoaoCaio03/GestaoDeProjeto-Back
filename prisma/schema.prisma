@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  idUser        Int        @id @default(autoincrement())
+  name          String     @db.VarChar(100)
+  email         String     @unique @db.VarChar(100)
+  password_hash String     @db.VarChar(255)
+  role          UserRole   @default(VIEWER)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamp(0)
+  contracts     Contract[]
+
+  @@map("USERS")
+}
+
+model Contract {
+  idContracts   Int            @id @default(autoincrement())
+  contractNum   String         @unique @db.VarChar(50)
+  objects       String         @db.Text
+  contractor    String         @db.VarChar(150)
+  contractValue Decimal        @db.Decimal(15, 2)
+  startDate     DateTime       @map("start_date") @db.Date
+  endDate       DateTime       @map("end_date") @db.Date
+  status        ContractStatus @default(ATIVO)
+  categories    Category
+  contractUrl   String?        @db.Text
+  idUser        Int?           @map("id_User")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamp(0)
+  
+  // Relacionamentos
+  user          User?          @relation(fields: [idUser], references: [idUser], onDelete: NoAction, onUpdate: NoAction, map: "FK_USERS_CONTRACTS")
+  additives     Additive[]
+  items         ContractItem[]
+  documents     Document[]
+
+  @@map("CONTRACTS")
+}
+
+model Additive {
+  idAdditive   Int          @id @default(autoincrement())
+  idContract   Int          @map("id_Contract")
+  typeAdditive AdditiveType
+  description  String       @db.Text
+  valueChange  Decimal?     @default(0.00) @db.Decimal(15, 2)
+  newEndDate   DateTime?    @db.Date
+  dateSigned   DateTime     @db.Date
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamp(0)
+  
+  // Relacionamentos
+  contract     Contract     @relation(fields: [idContract], references: [idContracts], onDelete: Cascade, map: "FK_CONTRACT_ADDITIVE")
+  documents    Document[]
+
+  @@map("ADDITIVES")
+}
+
+model ContractItem {
+  idItem      Int      @id @default(autoincrement())
+  idContract  Int      @map("id_Contract")
+  description String   @db.VarChar(255)
+  quantity    Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(15, 2)
+  totalPrice  Decimal  @map("total_price") @db.Decimal(15, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  
+  contract    Contract @relation(fields: [idContract], references: [idContracts], onDelete: Cascade, map: "FK_CONTRACT_ITEMS")
+
+  @@map("CONTRACT_ITEMS")
+}
+
+model Document {
+  idDocument Int      @id @default(autoincrement())
+  idContract Int      @map("id_Contract")
+  idAdditive Int?     @map("id_Additive")
+  fileName   String   @db.VarChar(255)
+  fileUrl    String   @db.Text
+  fileSize   String?  @db.VarChar(50)
+  category   String?  @db.VarChar(50)
+  uploadedAt DateTime @default(now()) @map("uploaded_at") @db.Timestamp(0)
+  
+  contract   Contract @relation(fields: [idContract], references: [idContracts], onDelete: Cascade, map: "FK_CONTRACT_DOCS")
+  additive   Additive? @relation(fields: [idAdditive], references: [idAdditive], onDelete: SetNull, map: "FK_ADDITIVE_DOCS")
+
+  @@map("DOCUMENTS")
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum ContractStatus {
+  ATIVO
+  SUSPENSO
+  ENCERRADO
+  ATENCAO
+}
+
+enum Category {
+  MATERIAL
+  SERVICOS
+  LOCACAO_DE_IMOVEL
+  TECNOLOGIA
+  OBRAS
+  CONSULTORIA
+  OUTROS
+}
+
+enum AdditiveType {
+  Aditivo_de_Prazo 
+  Aditivo_de_Valor
+  Apostilamento
+}
