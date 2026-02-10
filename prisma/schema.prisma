@@ -19,6 +19,29 @@ model User {
   @@map("USERS")
 }
 
+model Document {
+  idDocument Int      @id @default(autoincrement())
+  fileName   String   @db.VarChar(255)
+  fileKey    String   @db.Text
+  fileUrl    String   @db.Text
+  mimeType   String   @db.VarChar(50)
+  docType    DocType  @default(OUTROS)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  idContract Int?      @map("id_contract")
+  contract   Contract? @relation(fields: [idContract], references: [idContracts], onDelete: NoAction)
+
+  idAdditive Int?      @map("id_additive")
+  additive   Additive? @relation(fields: [idAdditive], references: [idAdditive], onDelete: NoAction)
+
+  idApostille Int?       @map("id_apostille")
+  apostille   Apostille? @relation(fields: [idApostille], references: [idApostille], onDelete: NoAction)
+
+  @@map("DOCUMENTS")
+}
+
+// --- CONTRATOS ---
+
 model Contract {
   idContracts   Int            @id @default(autoincrement())
   contractNum   String         @unique @db.VarChar(50)
@@ -28,66 +51,60 @@ model Contract {
   startDate     DateTime       @map("start_date") @db.Date
   endDate       DateTime       @map("end_date") @db.Date
   status        ContractStatus @default(ATIVO)
-  categories    Category
-  contractUrl   String?        @db.Text
-  idUser        Int?           @map("id_User")
-  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamp(0)
-  
+  category      Category
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
   // Relacionamentos
-  user          User?          @relation(fields: [idUser], references: [idUser], onDelete: NoAction, onUpdate: NoAction, map: "FK_USERS_CONTRACTS")
-  additives     Additive[]
-  items         ContractItem[]
-  documents     Document[]
+  createdByIdUser Int?  @map("id_user")
+  createdByUser   User? @relation(fields: [createdByIdUser], references: [idUser], onDelete: NoAction)
+
+  additives  Additive[]
+  documents  Document[] // Aqui estarão vinculados o CONTRATO_PRINCIPAL e a ATA_REGISTRO_PRECO
+  apostilles Apostille[]
 
   @@map("CONTRACTS")
 }
 
+// --- ADITIVOS ---
+
 model Additive {
   idAdditive   Int          @id @default(autoincrement())
-  idContract   Int          @map("id_Contract")
   typeAdditive AdditiveType
   description  String       @db.Text
   valueChange  Decimal?     @default(0.00) @db.Decimal(15, 2)
   newEndDate   DateTime?    @db.Date
   dateSigned   DateTime     @db.Date
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamp(0)
-  
+
   // Relacionamentos
-  contract     Contract     @relation(fields: [idContract], references: [idContracts], onDelete: Cascade, map: "FK_CONTRACT_ADDITIVE")
-  documents    Document[]
+  idContract Int      @map("id_contract")
+  contract   Contract @relation(fields: [idContract], references: [idContracts], onDelete: NoAction)
+
+  documents Document[]
 
   @@map("ADDITIVES")
 }
 
-model ContractItem {
-  idItem      Int      @id @default(autoincrement())
-  idContract  Int      @map("id_Contract")
-  description String   @db.VarChar(255)
-  quantity    Decimal  @db.Decimal(10, 2)
-  unitPrice   Decimal  @map("unit_price") @db.Decimal(15, 2)
-  totalPrice  Decimal  @map("total_price") @db.Decimal(15, 2)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  
-  contract    Contract @relation(fields: [idContract], references: [idContracts], onDelete: Cascade, map: "FK_CONTRACT_ITEMS")
+// --- APOSTILAMENTO ---
 
-  @@map("CONTRACT_ITEMS")
+model Apostille {
+  idApostille    Int      @id @default(autoincrement())
+  supplierName   String   @db.VarChar(255)
+  orderApostille Int      @db.SmallInt // Representa a ordem (1 a 10)
+  dateApostille  DateTime @db.Date
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  // Relacionamentos
+  idContract Int      @map("id_contract")
+  contract   Contract @relation(fields: [idContract], references: [idContracts], onDelete: NoAction)
+
+  documents Document[]
+
+  @@map("APOSTILLE")
 }
 
-model Document {
-  idDocument Int      @id @default(autoincrement())
-  idContract Int      @map("id_Contract")
-  idAdditive Int?     @map("id_Additive")
-  fileName   String   @db.VarChar(255)
-  fileUrl    String   @db.Text
-  fileSize   String?  @db.VarChar(50)
-  category   String?  @db.VarChar(50)
-  uploadedAt DateTime @default(now()) @map("uploaded_at") @db.Timestamp(0)
-  
-  contract   Contract @relation(fields: [idContract], references: [idContracts], onDelete: Cascade, map: "FK_CONTRACT_DOCS")
-  additive   Additive? @relation(fields: [idAdditive], references: [idAdditive], onDelete: SetNull, map: "FK_ADDITIVE_DOCS")
-
-  @@map("DOCUMENTS")
-}
+// --- ENUMERATIONS ---
 
 enum UserRole {
   ADMIN
@@ -113,7 +130,15 @@ enum Category {
 }
 
 enum AdditiveType {
-  Aditivo_de_Prazo 
+  Aditivo_de_Prazo
   Aditivo_de_Valor
-  Apostilamento
+}
+
+enum DocType {
+  CONTRATO_PRINCIPAL
+  ATA_REGISTRO
+  APOSTILAMENTO
+  ADITIVO
+  DOCUMENTO_AUXILIAR
+  OUTROS
 }

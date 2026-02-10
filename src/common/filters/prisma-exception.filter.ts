@@ -1,74 +1,143 @@
 import {
-  ExceptionFilter,
-  Catch,
   ArgumentsHost,
+  Catch,
+  ExceptionFilter,
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { Prisma } from 'generated/prisma/client';
 
-// This 'Catch' tells NestJS that this filter
-// should ONLY catch errors of type PrismaClientKnownRequestError
-@Catch(Prisma.PrismaClientKnownRequestError)
+@Catch(
+  Prisma.PrismaClientKnownRequestError,
+  Prisma.PrismaClientValidationError,
+  Prisma.PrismaClientUnknownRequestError,
+  Prisma.PrismaClientInitializationError,
+  Prisma.PrismaClientRustPanicError,
+)
 export class PrismaExceptionFilter implements ExceptionFilter {
-  // Logger is a good practice to see the error in the server console
   private readonly logger = new Logger(PrismaExceptionFilter.name);
 
-  catch(exception: Prisma.PrismaClientKnownRequestError, host: ArgumentsHost) {
+  catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-
-    this.logger.error(
-      `Error Code: ${exception.code} | Message: ${exception.message}`,
-      exception.stack,
-    );
+    const request = ctx.getRequest<Request>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'An internal server error occurred.';
+    let message = 'Erro interno ao processar a solicitação.';
     let details: any = null;
+    let errorCode: string | undefined = undefined;
 
-    switch (exception.code) {
-      case 'P2002':
-        status = HttpStatus.CONFLICT;
-        message = 'The record already exists.';
-        details = {
-          field: (exception.meta?.target as string[])?.join(', '),
-          message: `The field '${(exception.meta?.target as string[])?.join(
-            ', ',
-          )}' is already in use.`,
-        };
-        break;
+    // --- 1. ERROS CONHECIDOS (Constraint Violations) ---
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      errorCode = exception.code;
 
-      case 'P2025':
-        status = HttpStatus.NOT_FOUND;
-        message = 'The record you are trying to operate on was not found.';
-        break;
+      switch (exception.code) {
+        // P2002: Violação de Unicidade (Duplicidade)
+        case 'P2002':
+          status = HttpStatus.CONFLICT; // 409
 
-      case 'P2003':
-        status = HttpStatus.NOT_FOUND;
-        message =
-          'The operation failed because a related record was not found.';
-        details = {
-          field: exception.meta?.field_name,
-          message: `Foreign key constraint failed on the field: ${exception.meta?.field_name}`,
-        };
-        break;
+          // Pegamos o target como 'unknown' inicialmente
+          let target = exception.meta?.target;
 
-      default:
-        message = 'A database error occurred.';
-        details = {
-          prismaCode: exception.code,
-        };
-        break;
+          // Se for array, converte para string
+          if (Array.isArray(target)) {
+            target = target.join(', ');
+          }
+
+          // Fallback: Se não achou no meta, tenta achar via Regex na mensagem
+          if (!target) {
+            const match = exception.message.match(/fields: \((.*?)\)/);
+            if (match && match[1]) {
+              target = match[1].replace(/["`]/g, ''); // Limpa aspas
+            }
+          }
+
+          // LÓGICA CORRIGIDA AQUI:
+          if (target) {
+            // Forçamos a conversão para String() para o TypeScript não reclamar
+            const targetStr = String(target);
+
+            if (targetStr.includes('contractNum')) {
+              message = 'Já existe um contrato registrado com este Número.';
+            } else if (targetStr.includes('email')) {
+              message = 'Este e-mail já está sendo usado por outro usuário.';
+            } else {
+              message = `O valor informado para o campo '${targetStr}' já existe no sistema.`;
+            }
+          } else {
+            message =
+              'Um dos dados informados já existe no sistema (Duplicidade).';
+          }
+
+          details = { field: target, type: 'unique_constraint' };
+          break;
+
+        // P2025: Registro não encontrado
+        case 'P2025':
+          status = HttpStatus.NOT_FOUND; // 404
+          message =
+            'O registro solicitado não foi encontrado (pode ter sido excluído).';
+          break;
+
+        // P2003: Chave Estrangeira Inválida
+        case 'P2003':
+          status = HttpStatus.BAD_REQUEST; // 400
+          const fieldName = exception.meta?.field_name;
+          message = `Erro de vínculo: O registro relacionado em '${fieldName || 'campo desconhecido'}' não existe.`;
+          details = { field: fieldName, type: 'foreign_key_constraint' };
+          break;
+
+        // P2000: Valor muito longo
+        case 'P2000':
+          status = HttpStatus.BAD_REQUEST; // 400
+          message =
+            'O valor inserido é muito longo para o limite suportado pelo banco.';
+          break;
+
+        default:
+          message = `Erro no banco de dados.`;
+          details = { prismaError: exception.message.split('\n').pop() };
+          break;
+      }
     }
 
+    // --- 2. ERROS DE VALIDAÇÃO ---
+    else if (exception instanceof Prisma.PrismaClientValidationError) {
+      status = HttpStatus.UNPROCESSABLE_ENTITY; // 422
+      message = 'Os dados enviados não correspondem ao formato esperado.';
+      details = { error: 'Verifique tipos de dados e campos obrigatórios.' };
+    }
+
+    // --- 3. ERROS DE CONEXÃO ---
+    else if (exception instanceof Prisma.PrismaClientInitializationError) {
+      status = HttpStatus.SERVICE_UNAVAILABLE; // 503
+      message = 'O sistema de banco de dados está indisponível no momento.';
+      errorCode = exception.errorCode;
+    }
+
+    // --- 4. ERROS CRÍTICOS ---
+    else if (exception instanceof Prisma.PrismaClientRustPanicError) {
+      status = HttpStatus.INTERNAL_SERVER_ERROR;
+      message = 'Erro crítico no motor do banco de dados.';
+    }
+
+    // LOG TÉCNICO
+    this.logger.error(
+      `[Prisma] ${errorCode || exception.name} em ${request.method} ${request.url}`,
+      exception instanceof Prisma.PrismaClientKnownRequestError
+        ? JSON.stringify(exception.meta)
+        : exception.stack,
+    );
+
+    // RESPOSTA
     response.status(status).json({
       statusCode: status,
       message: message,
+      code: errorCode,
       details: details,
       timestamp: new Date().toISOString(),
-      path: ctx.getRequest().url,
+      path: request.url,
     });
   }
 }
