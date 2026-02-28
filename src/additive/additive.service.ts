@@ -43,10 +43,32 @@ export class AdditiveService {
             : null,
           dateSigned: new Date(createAdditiveData.dateSigned),
           contract: {
-            connect: { idContracts: idContract },
+            connect: { idContracts: Number(idContract) },
           },
         },
       });
+
+      if (createAdditiveData.typeAdditive === AdditiveType.Aditivo_de_Prazo) {
+        await tx.contract.update({
+          where: { idContracts: Number(idContract) },
+          data: {
+            endDate: createAdditiveData.newEndDate
+              ? new Date(createAdditiveData.newEndDate)
+              : undefined,
+          },
+        });
+      }
+
+      if (createAdditiveData.typeAdditive === AdditiveType.Aditivo_de_Valor) {
+        await tx.contract.update({
+          where: { idContracts: Number(idContract) },
+          data: {
+            contractValue: {
+              increment: createAdditiveData.valueChange || 0,
+            },
+          },
+        });
+      }
 
       await this.documentsService.handleFileUpload(
         file,
@@ -76,13 +98,13 @@ export class AdditiveService {
     }
 
     if (idContract) {
-      where.idContract = idContract;
+      where.idContract = Number(idContract);
     }
 
     const cursorObj = cursor ? { idAdditive: Number(cursor) } : undefined;
 
     const data = await this.prisma.additive.findMany({
-      take,
+      take: Number(take),
       skip: cursor ? 1 : 0,
       cursor: cursorObj,
       where,
@@ -120,5 +142,32 @@ export class AdditiveService {
       where: { idAdditive: id },
       data,
     });
+  }
+
+  async getSummary() {
+    const [totalGeral, valorCount, prazoCount, valorTotalAgg] =
+      await Promise.all([
+        this.prisma.additive.count(),
+
+        this.prisma.additive.count({
+          where: { typeAdditive: AdditiveType.Aditivo_de_Valor },
+        }),
+
+        this.prisma.additive.count({
+          where: { typeAdditive: AdditiveType.Aditivo_de_Prazo },
+        }),
+
+        this.prisma.additive.aggregate({
+          _sum: { valueChange: true },
+          where: { typeAdditive: AdditiveType.Aditivo_de_Valor },
+        }),
+      ]);
+
+    return {
+      totalGeral,
+      valorCount,
+      prazoCount,
+      valorTotal: valorTotalAgg._sum.valueChange?.toString() || '0',
+    };
   }
 }

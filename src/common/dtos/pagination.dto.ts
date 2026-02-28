@@ -1,15 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, Max, Min } from 'class-validator';
 
 export class CursorPaginationDto {
   @IsOptional()
-  @IsString()
-  cursor?: string;
+  @IsNumber()
+  cursor?: number;
 
   @IsOptional()
-  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
+  @Type(() => Number)
   take: number = 10;
 }

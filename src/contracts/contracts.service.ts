@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DocumentsService } from '../documents/documents.service';
 import { PrismaService } from 'src/prisma.service';
-import { DocType } from 'generated/prisma/enums';
+import { ContractStatus, DocType } from 'generated/prisma/enums';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { updateContractDto } from './dto/update-contract.dto';
 import { ContractDateFilter } from 'src/common/enums/contract-filter.enum';
@@ -73,6 +73,8 @@ export class ContractsService {
   async findAll(dto: ContractFilterDto) {
     const { take, cursor, status, dateFilter, search } = dto;
 
+    const limit = Number(take) || 10;
+
     const where: Prisma.ContractWhereInput = {};
 
     if (status) {
@@ -87,16 +89,17 @@ export class ContractsService {
     }
 
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     if (dateFilter === ContractDateFilter.EXPIRED_OVER_30) {
-      const dateLimit = new Date();
+      const dateLimit = new Date(today);
       dateLimit.setDate(today.getDate() - 30);
 
       where.endDate = {
         lt: dateLimit,
       };
     } else if (dateFilter === ContractDateFilter.EXPIRING_IN_30) {
-      const dateLimit = new Date();
+      const dateLimit = new Date(today);
       dateLimit.setDate(today.getDate() + 30);
 
       where.endDate = {
@@ -108,7 +111,7 @@ export class ContractsService {
     const cursorObj = cursor ? { idContracts: Number(cursor) } : undefined;
 
     const data = await this.prisma.contract.findMany({
-      take,
+      take: limit + 1,
       skip: cursor ? 1 : 0,
       cursor: cursorObj,
       where,
@@ -118,6 +121,12 @@ export class ContractsService {
       },
     });
 
+    const hasNextPage = data.length > limit;
+
+    if (hasNextPage) {
+      data.pop();
+    }
+
     const lastItem = data[data.length - 1];
     const nextCursor = lastItem ? lastItem.idContracts.toString() : null;
 
@@ -125,8 +134,40 @@ export class ContractsService {
       data,
       meta: {
         nextCursor,
-        hasNextPage: data.length === take,
+        hasNextPage,
       },
     };
+  }
+
+  async getSummary() {
+    return await this.prisma.$transaction(async (tx) => {
+      const totalContracts = await tx.contract.count();
+
+      const activeTotalContracts = await tx.contract.count({
+        where: { status: ContractStatus.ATIVO },
+      });
+
+      const contractsTotalValueResult = await tx.contract.aggregate({
+        _sum: { contractValue: true },
+      });
+      const contractsTotalValue =
+        contractsTotalValueResult._sum.contractValue || 0;
+
+      const totalSuspendedContracts = await tx.contract.count({
+        where: { status: ContractStatus.SUSPENSO },
+      });
+
+      const closedTotalContracts = await tx.contract.count({
+        where: { status: ContractStatus.ENCERRADO },
+      });
+
+      return {
+        total: totalContracts,
+        active: activeTotalContracts,
+        suspended: totalSuspendedContracts,
+        closed: closedTotalContracts,
+        totalValue: contractsTotalValue,
+      };
+    });
   }
 }

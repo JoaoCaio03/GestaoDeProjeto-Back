@@ -63,7 +63,10 @@ export class DocumentsService {
   }
 
   async findAll(dto: DocumentFilterDto) {
-    const { take, cursor, search, docType } = dto;
+    const { cursor, search, docType } = dto;
+
+    // 1. Converte o take para Number logo no início para garantir a tipagem no resto do método
+    const takeValue = Number(dto.take) || 10;
 
     const where: Prisma.DocumentWhereInput = {};
 
@@ -81,7 +84,7 @@ export class DocumentsService {
     const cursorObj = cursor ? { idDocument: Number(cursor) } : undefined;
 
     const data = await this.prisma.document.findMany({
-      take,
+      take: takeValue, // 2. Usa a variável convertida aqui
       skip: cursor ? 1 : 0,
       cursor: cursorObj,
       where,
@@ -100,7 +103,7 @@ export class DocumentsService {
       data,
       meta: {
         nextCursor,
-        hasNextPage: data.length === take,
+        hasNextPage: data.length === takeValue,
       },
     };
   }

@@ -71,7 +71,7 @@ export class DashboardService {
       this.prisma.contract.findMany({
         where: {
           endDate: {
-            lt: past30Days,
+            lte: past30Days,
           },
         },
         select: {

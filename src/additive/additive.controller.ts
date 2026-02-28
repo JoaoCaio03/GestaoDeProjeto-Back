@@ -10,6 +10,7 @@ import {
   Put,
   Query,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -17,10 +18,17 @@ import { AdditiveService } from './additive.service';
 import { CreateAdditiveDto } from './dto/create-additive.dto';
 import { UpdateAdditiveDto } from './dto/update-additive.dto';
 import { AdditiveFilterDto } from './dto/additive-filter.dto';
+import { JwtAuthGuard } from 'src/common/guards/auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('additive')
 export class AdditiveController {
   constructor(private readonly additiveService: AdditiveService) {}
+
+  @Get('summary')
+  async getSummary() {
+    return await this.additiveService.getSummary();
+  }
 
   @Post()
   @UseInterceptors(FileInterceptor('file'))

@@ -20,8 +20,9 @@ export class ApostilleService {
       const apostille = await tx.apostille.create({
         data: {
           ...createApostilleData,
+          orderApostille: Number(createApostilleData.orderApostille),
           contract: {
-            connect: { idContracts: idContract },
+            connect: { idContracts: Number(idContract) },
           },
         },
       });
@@ -50,7 +51,7 @@ export class ApostilleService {
     }
 
     if (idContract) {
-      where.idContract = idContract;
+      where.idContract = Number(idContract);
     }
 
     if (supplierName) {
@@ -63,7 +64,7 @@ export class ApostilleService {
     const cursorObj = cursor ? { idApostille: Number(cursor) } : undefined;
 
     const data = await this.prisma.apostille.findMany({
-      take,
+      take: Number(take),
       skip: cursor ? 1 : 0,
       cursor: cursorObj,
       where,

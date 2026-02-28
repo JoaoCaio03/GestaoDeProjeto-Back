@@ -16,7 +16,8 @@ export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
   @Get()
   async findAll(@Query() filterDto: DocumentFilterDto) {
-    return await this.documentsService.findAll(filterDto);
+    const documents = await this.documentsService.findAll(filterDto);
+    return documents;
   }
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {

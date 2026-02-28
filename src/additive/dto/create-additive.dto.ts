@@ -7,7 +7,7 @@ import {
   IsEnum,
   IsNumber,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { AdditiveType } from 'generated/prisma/enums';
 export class CreateAdditiveDto {
   @IsEnum(AdditiveType, { message: 'Tipo de aditivo inválido' })
@@ -33,6 +33,6 @@ export class CreateAdditiveDto {
 
   @IsInt()
   @IsNotEmpty()
-  @Type(() => Number)
+  @Transform(() => Number)
   idContract: number;
 }

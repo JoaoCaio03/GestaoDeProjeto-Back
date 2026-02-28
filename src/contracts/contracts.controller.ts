@@ -66,6 +66,11 @@ export class ContractsController {
     );
   }
 
+  @Get('summary')
+  async getSummary() {
+    return await this.contractsService.getSummary(); 
+  }
+
   @Get()
   async findAll(@Query() contractFilterDto: ContractFilterDto) {
     return await this.contractsService.findAll(contractFilterDto);
