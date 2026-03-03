@@ -39,7 +39,8 @@ export class ApostilleService {
   }
 
   async findAll(dto: ApostilleFilterDto) {
-    const { take, cursor, idContract, supplierName, search } = dto;
+    const { take, cursor, idContract, supplierName, orderApostille, search } =
+      dto;
 
     const where: Prisma.ApostilleWhereInput = {};
 
@@ -48,6 +49,10 @@ export class ApostilleService {
         { supplierName: { contains: search, mode: 'insensitive' } },
         { contract: { contractor: { contains: search, mode: 'insensitive' } } },
       ];
+    }
+
+    if (orderApostille) {
+      where.orderApostille = Number(orderApostille);
     }
 
     if (idContract) {
