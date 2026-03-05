@@ -19,20 +19,12 @@ import { S3Client } from '@aws-sdk/client-s3';
           'AWS_ACCESS_KEY_SECRET_ID',
         );
 
-        //USADO APENAS PARA DESENVOLVIMENTO LOCAL
-        const minioEndpoint =
-          configService.getOrThrow<string>('MINIO_ENDPOINT');
-
         return new S3Client({
           region,
           credentials: {
             accessKeyId,
             secretAccessKey,
           },
-
-          // DEV
-          forcePathStyle: true,
-          endpoint: minioEndpoint,
         });
       },
     },
