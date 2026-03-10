@@ -140,34 +140,30 @@ export class ContractsService {
   }
 
   async getSummary() {
-    return await this.prisma.$transaction(async (tx) => {
-      const totalContracts = await tx.contract.count();
-
-      const activeTotalContracts = await tx.contract.count({
-        where: { status: ContractStatus.ATIVO },
-      });
-
-      const contractsTotalValueResult = await tx.contract.aggregate({
-        _sum: { contractValue: true },
-      });
-      const contractsTotalValue =
-        contractsTotalValueResult._sum.contractValue || 0;
-
-      const totalSuspendedContracts = await tx.contract.count({
+    const [
+      totalContracts,
+      activeTotalContracts,
+      contractsTotalValueResult,
+      totalSuspendedContracts,
+      closedTotalContracts,
+    ] = await Promise.all([
+      this.prisma.contract.count(),
+      this.prisma.contract.count({ where: { status: ContractStatus.ATIVO } }),
+      this.prisma.contract.aggregate({ _sum: { contractValue: true } }),
+      this.prisma.contract.count({
         where: { status: ContractStatus.SUSPENSO },
-      });
-
-      const closedTotalContracts = await tx.contract.count({
+      }),
+      this.prisma.contract.count({
         where: { status: ContractStatus.ENCERRADO },
-      });
+      }),
+    ]);
 
-      return {
-        total: totalContracts,
-        active: activeTotalContracts,
-        suspended: totalSuspendedContracts,
-        closed: closedTotalContracts,
-        totalValue: contractsTotalValue,
-      };
-    });
+    return {
+      total: totalContracts,
+      active: activeTotalContracts,
+      suspended: totalSuspendedContracts,
+      closed: closedTotalContracts,
+      totalValue: contractsTotalValueResult._sum.contractValue || 0,
+    };
   }
 }
