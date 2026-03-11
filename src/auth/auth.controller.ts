@@ -5,13 +5,17 @@ import { AuthService } from './auth.service';
 import { LoginUserDto } from './dto/login.dto';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { JwtAuthGuard } from 'src/common/guards/auth.guard';
-import { User } from 'generated/prisma/client';
+import { User, UserRole } from 'generated/prisma/client';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   async registerUser(
     @Body() registerUserDto: RegisterUserDto,
   ): Promise<SafeUser> {
