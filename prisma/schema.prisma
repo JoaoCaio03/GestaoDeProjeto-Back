@@ -21,10 +21,10 @@ model User {
 
 model Document {
   idDocument Int      @id @default(autoincrement())
-  fileName   String   @db.VarChar(255)
-  fileKey    String   @db.Text
-  fileUrl    String   @db.Text
-  mimeType   String   @db.VarChar(50)
+  fileName   String
+  fileKey    String
+  fileUrl    String
+  mimeType   String   
   docType    DocType  @default(OUTROS)
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(0)
 
